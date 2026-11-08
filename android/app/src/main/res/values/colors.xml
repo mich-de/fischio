@@ -1,0 +1,6 @@
+<resources>
+    <color name="bg">#F3F5F1</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="pitch">#1F6B45</color>
+    <color name="card">#E8B400</color>
+</resources>

@@ -1,0 +1,8 @@
+{
+  "name": "fischio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Risultati di calcio in diretta: app web, server ponte verso API-Football e app Android",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

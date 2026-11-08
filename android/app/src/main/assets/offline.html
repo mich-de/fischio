@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#F3F5F1;--fg:#17201A;--muted:#5E6B62;--accent:#1F6B45;--ink:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1612;--fg:#E9EFE9;--muted:#93A399;--accent:#5CC48C;--ink:#0B1A11}}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
+h1{font-size:22px;margin:0} p{color:var(--muted);margin:0;max-width:30ch}
+button{margin-top:8px;background:var(--accent);color:var(--ink);border:0;border-radius:999px;padding:10px 22px;font-size:15px;font-weight:600}
+</style></head><body>
+<h1>Sei offline</h1>
+<p>Fischio non riesce a raggiungere il server. Controlla la connessione e riprova.</p>
+<button onclick="Fischio.retry()">Riprova</button>
+</body></html>
