@@ -274,11 +274,12 @@ async function load(silent){
 // scheda partita
 function openSheet(o){state.open=o;state.pane=o.std?'classifica':'eventi';state.detail=null;$('scrim').hidden=false;$('sheet').hidden=false;document.body.style.overflow='hidden';renderSheet();$('close').focus();
   if(o.m) loadDetail(); else loadStand(o.std);}
+
 function closeSheet(){state.open=null;$('scrim').hidden=true;$('sheet').hidden=true;document.body.style.overflow=''}
 
 async function loadDetail(){
   const id=state.open&&state.open.m;if(!id)return;
-  try{const j=await get('/api/match?id='+id);if(state.open&&state.open.m===id){state.detail=j.match;renderSheet()}}
+  try{const fx=state.data&&state.data.fixtures.find(x=>x.id===id);const j=await get('/api/match?id='+id+(fx?'&league='+encodeURIComponent(fx.league.id):''));if(state.open&&state.open.m===id){state.detail=j.match;renderSheet()}}
   catch(e){if(state.open&&state.open.m===id){state.detail={error:e.message};renderSheet()}}
 }
 async function loadStand(league){
@@ -359,7 +360,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-t]');if(t){state.tab=t.dataset.t;renderTabs();render();return}
   const f=e.target.closest('[data-f]');if(f){const id=+f.dataset.f;favs.has(id)?favs.delete(id):favs.add(id);saveFav();render();return}
   if(e.target.closest('[data-retry]')){load();return}
-  const s=e.target.closest('[data-std]');if(s){openSheet({std:+s.dataset.std});return}
+  const s=e.target.closest('[data-std]');if(s){openSheet({std:s.dataset.std});return}
   const p=e.target.closest('[data-p]');if(p){state.pane=p.dataset.p;if(state.pane==='classifica'){const b=state.detail&&state.detail.league?state.detail:state.data.fixtures.find(x=>x.id===state.open.m);loadStand(b.league.id)}else renderSheet();return}
   const m=e.target.closest('[data-m]');if(m){openSheet({m:+m.dataset.m});return}
 });

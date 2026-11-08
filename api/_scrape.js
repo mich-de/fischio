@@ -138,46 +138,40 @@ function parseMinute(clock) {
   return { min: Math.floor((clock.value || 0) / 60), extra: null };
 }
 
-async function fetchMatchDetail(eventId) {
-  // Dobbiamo sapere in quale campionato cercare. Proviamo tutti in parallelo.
-  // In alternativa, il scoreboard ci dà già i details.
-  // Usiamo il summary endpoint che include tutto.
+function detailsToEvents(details, homeId) {
+  return (details || []).map(d => {
+    const kind = parseDetail(d);
+    if (kind === 'other') return null;
+    const { min, extra } = parseMinute(d.clock);
+    const player = d.athletesInvolved?.[0]?.displayName || '';
+    return { min, extra, side: String(d.team?.id) === String(homeId) ? 'h' : 'a', kind, player, assist: '', detail: '' };
+  }).filter(Boolean);
+}
+
+// Cerca la partita nella lista del giorno: lì ESPN mette marcatori e cartellini con i nomi.
+async function eventFromScoreboard(slug, eventId, isoDate) {
+  const d0 = new Date(isoDate);
+  for (const off of [0, -1, 1]) {
+    const d = new Date(d0.getTime() + off * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+    try {
+      const data = await espn(`${SCORE_BASE}/${slug}/scoreboard?dates=${d}`);
+      const ev = (data.events || []).find(e => String(e.id) === String(eventId));
+      if (ev) return ev;
+    } catch (e) { /* prova il giorno dopo */ }
+  }
+  return null;
+}
+
+async function fetchMatchDetail(eventId, leagueSlug) {
   let summaryData = null;
-  // Prova ogni campionato finché non troviamo il match
-  for (const lg of LEAGUES) {
+  const order = leagueSlug ? [LEAGUES.find(l => l.slug === leagueSlug) || { slug: leagueSlug, name: leagueSlug, country: '' }, ...LEAGUES.filter(l => l.slug !== leagueSlug)] : LEAGUES;
+  for (const lg of order) {
     try {
       const data = await espn(`${SCORE_BASE}/${lg.slug}/summary?event=${eventId}`);
       if (data.header) { summaryData = data; summaryData._lg = lg; break; }
     } catch (e) { /* prova il prossimo */ }
   }
-
-  // Se il summary non funziona, cerca nei dati del scoreboard
-  if (!summaryData) {
-    // Fallback: prendi dal scoreboard di oggi
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date()).replace(/-/g, '');
-    for (const lg of LEAGUES) {
-      try {
-        const data = await espn(`${SCORE_BASE}/${lg.slug}/scoreboard?dates=${today}`);
-        const ev = (data.events || []).find(e => String(e.id) === String(eventId));
-        if (ev) {
-          const base = parseEvent(ev, lg);
-          // Estrai eventi dal details
-          const c = ev.competitions?.[0] || {};
-          const events = (c.details || [])
-            .map(d => {
-              const kind = parseDetail(d);
-              if (kind === 'other') return null;
-              const { min, extra } = parseMinute(d.clock);
-              const player = d.athletesInvolved?.[0]?.displayName || '';
-              return { min, extra, side: d.team?.id == base.home.id ? 'h' : 'a', kind, player, assist: '', detail: '' };
-            })
-            .filter(Boolean);
-          return { ...base, events, stats: [] };
-        }
-      } catch (e) { /* prova il prossimo */ }
-    }
-    throw new Error('Partita non trovata.');
-  }
+  if (!summaryData) throw new Error('Partita non trovata.');
 
   // Parse dal summary
   const hdr = summaryData.header;
@@ -203,33 +197,19 @@ async function fetchMatchDetail(eventId) {
     as: awayComp.score != null ? Number(awayComp.score) : null,
   };
 
-  // Key events dal summary (commentaryItems o keyEvents)
+  // Eventi: prima dalla lista del giorno (ha i nomi), poi dal summary
   let events = [];
-  const keyEv = summaryData.keyEvents || [];
-  if (keyEv.length) {
-    for (const ke of keyEv) {
-      const c2 = ke.competitions?.[0] || {};
-      for (const d of (c2.details || [])) {
-        const kind = parseDetail(d);
-        if (kind === 'other') continue;
-        const { min, extra } = parseMinute(d.clock);
-        const player = d.athletesInvolved?.[0]?.displayName || '';
-        events.push({ min, extra, side: String(d.team?.id) === String(base.home.id) ? 'h' : 'a', kind, player, assist: '', detail: '' });
-      }
-    }
-  }
-  // Fallback: dal scoreboard details che a volte è nel header
-  if (!events.length) {
-    const details = comp.details || [];
-    events = details
-      .map(d => {
-        const kind = parseDetail(d);
-        if (kind === 'other') return null;
-        const { min, extra } = parseMinute(d.clock);
-        const player = d.athletesInvolved?.[0]?.displayName || '';
-        return { min, extra, side: String(d.team?.id) === String(base.home.id) ? 'h' : 'a', kind, player, assist: '', detail: '' };
-      })
-      .filter(Boolean);
+  const sb = await eventFromScoreboard(lg.slug, eventId, comp.date);
+  if (sb) events = detailsToEvents(sb.competitions?.[0]?.details, base.home.id);
+  if (!events.length) events = detailsToEvents(comp.details, base.home.id);
+  // Sostituzioni dal summary, se presenti
+  for (const ke of (summaryData.keyEvents || [])) {
+    const t = (ke.type?.text || ke.type?.type || '').toLowerCase();
+    if (!t.includes('substitution')) continue;
+    const { min, extra } = parseMinute(ke.clock);
+    const ps = ke.participants || [];
+    events.push({ min, extra, side: String(ke.team?.id) === String(base.home.id) ? 'h' : 'a', kind: 'sub',
+      player: ps[0]?.athlete?.displayName || '', assist: ps[1]?.athlete?.displayName || '', detail: '' });
   }
 
   // Statistiche dal boxscore

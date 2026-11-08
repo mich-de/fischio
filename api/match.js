@@ -3,10 +3,11 @@ const { fetchMatchDetail } = require('./_scrape.js');
 const { send, query, handler, HttpError } = require('./_lib.js');
 
 module.exports = handler(async (req, res) => {
-  const id = Number(query(req).id);
+  const q = query(req);
+  const id = Number(q.id);
   if (!id) throw new HttpError(400, "Manca l'id della partita.");
 
-  const match = await fetchMatchDetail(id);
+  const match = await fetchMatchDetail(id, q.league);
   const maxAge = match.status === 'live' || match.status === 'ht' ? 60 : match.status === 'ft' ? 21600 : 600;
   send(res, 200, { demo: false, match }, maxAge);
 });
